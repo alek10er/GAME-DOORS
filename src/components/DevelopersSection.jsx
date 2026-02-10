@@ -19,7 +19,7 @@ const developers = [
     name: '2nic4',
     title: 'GUI designer',
     handle: 'kkva5ik',
-    avatarUrl: '/2nic4.png',
+    avatarUrl: '/2nic4.jpg',
     contactUrl: 'https://t.me/kkva5ik'
   }
 ];
