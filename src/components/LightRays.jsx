@@ -1,141 +1,196 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import './LightRays.css';
 
-const vertexShaderSource = `
-  attribute vec2 a_position;
-  varying vec2 v_uv;
+const DEFAULT_COLOR = '#ffffff';
 
-  void main() {
-    v_uv = (a_position + 1.0) * 0.5;
-    gl_Position = vec4(a_position, 0.0, 1.0);
+const hexToRgb = (hex) => {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255] : [1, 1, 1];
+};
+
+const getAnchorAndDir = (origin, w, h) => {
+  const outside = 0.2;
+  switch (origin) {
+    case 'top-left':
+      return { anchor: [0, -outside * h], dir: [0, 1] };
+    case 'top-right':
+      return { anchor: [w, -outside * h], dir: [0, 1] };
+    case 'left':
+      return { anchor: [-outside * w, 0.5 * h], dir: [1, 0] };
+    case 'right':
+      return { anchor: [(1 + outside) * w, 0.5 * h], dir: [-1, 0] };
+    case 'bottom-left':
+      return { anchor: [0, (1 + outside) * h], dir: [0, -1] };
+    case 'bottom-center':
+      return { anchor: [0.5 * w, (1 + outside) * h], dir: [0, -1] };
+    case 'bottom-right':
+      return { anchor: [w, (1 + outside) * h], dir: [0, -1] };
+    default:
+      return { anchor: [0.5 * w, -outside * h], dir: [0, 1] };
   }
-`;
+};
 
-const fragmentShaderSource = `
-  precision mediump float;
+const VERT = `
+attribute vec2 a_position;
+varying vec2 vUv;
+void main() {
+  vUv = a_position * 0.5 + 0.5;
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
 
-  varying vec2 v_uv;
-  uniform vec2 u_origin;
-  uniform vec3 u_color;
-  uniform float u_time;
-  uniform float u_speed;
-  uniform float u_spread;
-  uniform float u_length;
-  uniform float u_mouse_influence;
-  uniform vec2 u_mouse;
-  uniform float u_noise;
-  uniform float u_distortion;
-  uniform float u_pulsating;
-  uniform float u_fade_distance;
-  uniform float u_saturation;
+const FRAG = `
+precision highp float;
 
-  float hash(vec2 p) {
-    p = fract(p * vec2(123.34, 456.21));
-    p += dot(p, p + 45.32);
-    return fract(p.x * p.y);
+uniform float iTime;
+uniform vec2  iResolution;
+uniform vec2  rayPos;
+uniform vec2  rayDir;
+uniform vec3  raysColor;
+uniform float raysSpeed;
+uniform float lightSpread;
+uniform float rayLength;
+uniform float pulsating;
+uniform float fadeDistance;
+uniform float saturation;
+uniform vec2  mousePos;
+uniform float mouseInfluence;
+uniform float noiseAmount;
+uniform float distortion;
+
+varying vec2 vUv;
+
+float noise(vec2 st) {
+  return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+}
+
+float rayStrength(vec2 raySource, vec2 rayRefDirection, vec2 coord,
+                  float seedA, float seedB, float speed) {
+  vec2 sourceToCoord = coord - raySource;
+  vec2 dirNorm = normalize(sourceToCoord);
+  float cosAngle = dot(dirNorm, rayRefDirection);
+
+  float distortedAngle = cosAngle + distortion * sin(iTime * 2.0 + length(sourceToCoord) * 0.01) * 0.2;
+  float spreadFactor = pow(max(distortedAngle, 0.0), 1.0 / max(lightSpread, 0.001));
+
+  float distance = length(sourceToCoord);
+  float maxDistance = iResolution.x * rayLength;
+  float lengthFalloff = clamp((maxDistance - distance) / maxDistance, 0.0, 1.0);
+
+  float fadeFalloff = clamp((iResolution.x * fadeDistance - distance) / (iResolution.x * fadeDistance), 0.5, 1.0);
+  float pulse = pulsating > 0.5 ? (0.8 + 0.2 * sin(iTime * speed * 3.0)) : 1.0;
+
+  float baseStrength = clamp(
+    (0.45 + 0.15 * sin(distortedAngle * seedA + iTime * speed)) +
+    (0.3 + 0.2 * cos(-distortedAngle * seedB + iTime * speed)),
+    0.0, 1.0
+  );
+
+  return baseStrength * lengthFalloff * fadeFalloff * spreadFactor * pulse;
+}
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 coord = vec2(fragCoord.x, iResolution.y - fragCoord.y);
+
+  vec2 finalRayDir = rayDir;
+  if (mouseInfluence > 0.0) {
+    vec2 mouseScreenPos = mousePos * iResolution.xy;
+    vec2 mouseDirection = normalize(mouseScreenPos - rayPos);
+    finalRayDir = normalize(mix(rayDir, mouseDirection, mouseInfluence));
   }
 
-  vec3 applySaturation(vec3 color, float saturation) {
-    float luma = dot(color, vec3(0.299, 0.587, 0.114));
-    return mix(vec3(luma), color, saturation);
+  vec4 rays1 = vec4(1.0) * rayStrength(rayPos, finalRayDir, coord, 36.2214, 21.11349, 1.5 * raysSpeed);
+  vec4 rays2 = vec4(1.0) * rayStrength(rayPos, finalRayDir, coord, 22.3991, 18.0234, 1.1 * raysSpeed);
+
+  fragColor = rays1 * 0.5 + rays2 * 0.4;
+
+  if (noiseAmount > 0.0) {
+    float n = noise(coord * 0.01 + iTime * 0.1);
+    fragColor.rgb *= (1.0 - noiseAmount + noiseAmount * n);
   }
 
-  void main() {
-    vec2 st = v_uv;
-    vec2 fromOrigin = st - u_origin;
-    float dist = length(fromOrigin);
-    float angle = atan(fromOrigin.y, fromOrigin.x);
+  float brightness = 1.0 - (coord.y / iResolution.y);
+  fragColor.x *= 0.1 + brightness * 0.8;
+  fragColor.y *= 0.3 + brightness * 0.6;
+  fragColor.z *= 0.5 + brightness * 0.5;
 
-    float sweep = sin(angle * 11.0 + u_time * u_speed);
-    float pulse = (u_pulsating > 0.5) ? (0.85 + 0.15 * sin(u_time * 1.5)) : 1.0;
-
-    vec2 mouseDir = st - u_mouse;
-    float mouseBoost = 1.0 + u_mouse_influence * (1.0 - smoothstep(0.0, 0.7, length(mouseDir)));
-
-    float irregular = hash(st * 35.0 + u_time) * u_noise;
-    float distortionWave = sin((st.y + st.x) * 12.0 + u_time * 2.0) * 0.04 * u_distortion;
-
-    float core = smoothstep(u_spread + distortionWave, 0.0, abs(sweep) + irregular);
-    float attenuation = smoothstep(u_length, u_fade_distance, dist);
-    float intensity = core * attenuation * mouseBoost * pulse;
-
-    vec3 color = applySaturation(u_color * intensity, u_saturation);
-    gl_FragColor = vec4(color, intensity * 0.85);
+  if (saturation != 1.0) {
+    float gray = dot(fragColor.rgb, vec3(0.299, 0.587, 0.114));
+    fragColor.rgb = mix(vec3(gray), fragColor.rgb, saturation);
   }
-`;
 
-function compileShader(gl, type, source) {
+  fragColor.rgb *= raysColor;
+}
+
+void main() {
+  vec4 color;
+  mainImage(color, gl_FragCoord.xy);
+  gl_FragColor = color;
+}`;
+
+const compileShader = (gl, type, source) => {
   const shader = gl.createShader(type);
   gl.shaderSource(shader, source);
   gl.compileShader(shader);
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
-    const message = gl.getShaderInfoLog(shader);
-    gl.deleteShader(shader);
-    throw new Error(`Shader compile failed: ${message}`);
+    throw new Error(gl.getShaderInfoLog(shader) || 'Shader compile failed');
   }
   return shader;
-}
+};
 
-function createProgram(gl) {
-  const vertexShader = compileShader(gl, gl.VERTEX_SHADER, vertexShaderSource);
-  const fragmentShader = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShaderSource);
+const createProgram = (gl) => {
+  const vs = compileShader(gl, gl.VERTEX_SHADER, VERT);
+  const fs = compileShader(gl, gl.FRAGMENT_SHADER, FRAG);
   const program = gl.createProgram();
-  gl.attachShader(program, vertexShader);
-  gl.attachShader(program, fragmentShader);
+  gl.attachShader(program, vs);
+  gl.attachShader(program, fs);
   gl.linkProgram(program);
-
   if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-    const message = gl.getProgramInfoLog(program);
-    gl.deleteProgram(program);
-    throw new Error(`Program link failed: ${message}`);
+    throw new Error(gl.getProgramInfoLog(program) || 'Program link failed');
   }
-
-  gl.deleteShader(vertexShader);
-  gl.deleteShader(fragmentShader);
+  gl.deleteShader(vs);
+  gl.deleteShader(fs);
   return program;
-}
-
-function hexToRgb(hex) {
-  const normalized = hex.replace('#', '');
-  const value = parseInt(normalized.length === 3 ? normalized.split('').map((c) => c + c).join('') : normalized, 16);
-  return [((value >> 16) & 255) / 255, ((value >> 8) & 255) / 255, (value & 255) / 255];
-}
-
-function resolveOrigin(position) {
-  const map = {
-    center: [0.5, 0.5],
-    'top-center': [0.5, 0.0],
-    'bottom-center': [0.5, 1.0],
-    left: [0.0, 0.5],
-    right: [1.0, 0.5]
-  };
-
-  return map[position] || map['top-center'];
-}
+};
 
 export default function LightRays({
   raysOrigin = 'top-center',
-  raysColor = '#6c9aea',
+  raysColor = DEFAULT_COLOR,
   raysSpeed = 1,
-  lightSpread = 0.5,
-  rayLength = 3,
+  lightSpread = 1,
+  rayLength = 2,
+  pulsating = false,
+  fadeDistance = 1,
+  saturation = 1,
   followMouse = true,
   mouseInfluence = 0.1,
   noiseAmount = 0,
   distortion = 0,
-  className = '',
-  pulsating = false,
-  fadeDistance = 1,
-  saturation = 1
+  className = ''
 }) {
   const canvasRef = useRef(null);
-  const frameRef = useRef(0);
   const mouseRef = useRef({ x: 0.5, y: 0.5 });
+  const smoothMouseRef = useRef({ x: 0.5, y: 0.5 });
+  const frameRef = useRef(0);
+  const observerRef = useRef(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (!canvasRef.current) return undefined;
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => setIsVisible(entries[0]?.isIntersecting ?? false),
+      { threshold: 0.1 }
+    );
+    observerRef.current.observe(canvasRef.current);
+
+    return () => observerRef.current?.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return undefined;
+    if (!canvas || !isVisible) return undefined;
 
-    const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: true });
+    const gl = canvas.getContext('webgl', { alpha: true });
     if (!gl) return undefined;
 
     const program = createProgram(gl);
@@ -143,94 +198,107 @@ export default function LightRays({
     gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
 
-    const positionLocation = gl.getAttribLocation(program, 'a_position');
+    const posLoc = gl.getAttribLocation(program, 'a_position');
     const uniforms = {
-      origin: gl.getUniformLocation(program, 'u_origin'),
-      color: gl.getUniformLocation(program, 'u_color'),
-      time: gl.getUniformLocation(program, 'u_time'),
-      speed: gl.getUniformLocation(program, 'u_speed'),
-      spread: gl.getUniformLocation(program, 'u_spread'),
-      length: gl.getUniformLocation(program, 'u_length'),
-      mouseInfluence: gl.getUniformLocation(program, 'u_mouse_influence'),
-      mouse: gl.getUniformLocation(program, 'u_mouse'),
-      noise: gl.getUniformLocation(program, 'u_noise'),
-      distortion: gl.getUniformLocation(program, 'u_distortion'),
-      pulsating: gl.getUniformLocation(program, 'u_pulsating'),
-      fadeDistance: gl.getUniformLocation(program, 'u_fade_distance'),
-      saturation: gl.getUniformLocation(program, 'u_saturation')
+      iTime: gl.getUniformLocation(program, 'iTime'),
+      iResolution: gl.getUniformLocation(program, 'iResolution'),
+      rayPos: gl.getUniformLocation(program, 'rayPos'),
+      rayDir: gl.getUniformLocation(program, 'rayDir'),
+      raysColor: gl.getUniformLocation(program, 'raysColor'),
+      raysSpeed: gl.getUniformLocation(program, 'raysSpeed'),
+      lightSpread: gl.getUniformLocation(program, 'lightSpread'),
+      rayLength: gl.getUniformLocation(program, 'rayLength'),
+      pulsating: gl.getUniformLocation(program, 'pulsating'),
+      fadeDistance: gl.getUniformLocation(program, 'fadeDistance'),
+      saturation: gl.getUniformLocation(program, 'saturation'),
+      mousePos: gl.getUniformLocation(program, 'mousePos'),
+      mouseInfluence: gl.getUniformLocation(program, 'mouseInfluence'),
+      noiseAmount: gl.getUniformLocation(program, 'noiseAmount'),
+      distortion: gl.getUniformLocation(program, 'distortion')
     };
-
-    const [originX, originY] = resolveOrigin(raysOrigin);
-    const color = hexToRgb(raysColor);
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.floor(canvas.clientWidth * dpr);
-      canvas.height = Math.floor(canvas.clientHeight * dpr);
-      gl.viewport(0, 0, canvas.width, canvas.height);
+      const w = Math.max(1, Math.floor(canvas.clientWidth * dpr));
+      const h = Math.max(1, Math.floor(canvas.clientHeight * dpr));
+      canvas.width = w;
+      canvas.height = h;
+      gl.viewport(0, 0, w, h);
     };
 
-    const onMouseMove = (event) => {
+    const onMouseMove = (e) => {
       if (!followMouse) return;
       const rect = canvas.getBoundingClientRect();
       mouseRef.current = {
-        x: (event.clientX - rect.left) / rect.width,
-        y: 1 - (event.clientY - rect.top) / rect.height
+        x: (e.clientX - rect.left) / rect.width,
+        y: 1 - (e.clientY - rect.top) / rect.height
       };
     };
 
-    const observer = new IntersectionObserver((entries) => {
-      const visible = entries[0]?.isIntersecting;
-      if (!visible && frameRef.current) {
-        cancelAnimationFrame(frameRef.current);
-        frameRef.current = 0;
-      } else if (visible && !frameRef.current) {
-        render(performance.now());
-      }
-    }, { threshold: 0.01 });
+    const color = hexToRgb(raysColor);
 
-    const render = (time) => {
+    const render = (t) => {
+      const w = canvas.width;
+      const h = canvas.height;
+      const { anchor, dir } = getAnchorAndDir(raysOrigin, w, h);
+
+      smoothMouseRef.current.x = smoothMouseRef.current.x * 0.92 + mouseRef.current.x * 0.08;
+      smoothMouseRef.current.y = smoothMouseRef.current.y * 0.92 + mouseRef.current.y * 0.08;
+
       gl.clearColor(0, 0, 0, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.useProgram(program);
-
       gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
-      gl.enableVertexAttribArray(positionLocation);
-      gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+      gl.enableVertexAttribArray(posLoc);
+      gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
-      gl.uniform2f(uniforms.origin, originX, 1 - originY);
-      gl.uniform3f(uniforms.color, color[0], color[1], color[2]);
-      gl.uniform1f(uniforms.time, time * 0.001);
-      gl.uniform1f(uniforms.speed, raysSpeed);
-      gl.uniform1f(uniforms.spread, lightSpread);
-      gl.uniform1f(uniforms.length, rayLength);
-      gl.uniform1f(uniforms.mouseInfluence, followMouse ? mouseInfluence : 0);
-      gl.uniform2f(uniforms.mouse, mouseRef.current.x, mouseRef.current.y);
-      gl.uniform1f(uniforms.noise, noiseAmount);
-      gl.uniform1f(uniforms.distortion, distortion);
+      gl.uniform1f(uniforms.iTime, t * 0.001);
+      gl.uniform2f(uniforms.iResolution, w, h);
+      gl.uniform2f(uniforms.rayPos, anchor[0], anchor[1]);
+      gl.uniform2f(uniforms.rayDir, dir[0], dir[1]);
+      gl.uniform3f(uniforms.raysColor, color[0], color[1], color[2]);
+      gl.uniform1f(uniforms.raysSpeed, raysSpeed);
+      gl.uniform1f(uniforms.lightSpread, lightSpread);
+      gl.uniform1f(uniforms.rayLength, rayLength);
       gl.uniform1f(uniforms.pulsating, pulsating ? 1 : 0);
       gl.uniform1f(uniforms.fadeDistance, fadeDistance);
       gl.uniform1f(uniforms.saturation, saturation);
+      gl.uniform2f(uniforms.mousePos, smoothMouseRef.current.x, smoothMouseRef.current.y);
+      gl.uniform1f(uniforms.mouseInfluence, followMouse ? mouseInfluence : 0);
+      gl.uniform1f(uniforms.noiseAmount, noiseAmount);
+      gl.uniform1f(uniforms.distortion, distortion);
 
       gl.drawArrays(gl.TRIANGLES, 0, 6);
       frameRef.current = requestAnimationFrame(render);
     };
 
     resize();
-    observer.observe(canvas);
     window.addEventListener('resize', resize);
     window.addEventListener('mousemove', onMouseMove);
     frameRef.current = requestAnimationFrame(render);
 
     return () => {
-      observer.disconnect();
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
       window.removeEventListener('resize', resize);
       window.removeEventListener('mousemove', onMouseMove);
-      if (frameRef.current) cancelAnimationFrame(frameRef.current);
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
     };
-  }, [distortion, fadeDistance, followMouse, lightSpread, mouseInfluence, noiseAmount, pulsating, rayLength, raysColor, raysOrigin, raysSpeed, saturation]);
+  }, [
+    isVisible,
+    raysOrigin,
+    raysColor,
+    raysSpeed,
+    lightSpread,
+    rayLength,
+    pulsating,
+    fadeDistance,
+    saturation,
+    followMouse,
+    mouseInfluence,
+    noiseAmount,
+    distortion
+  ]);
 
   return (
     <div className={`light-rays-container ${className}`.trim()} aria-hidden="true">

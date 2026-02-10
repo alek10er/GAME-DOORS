@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useRef, useCallback, useMemo } from 'react';
 import './ProfileCard.css';
 
 const DEFAULT_INNER_GRADIENT = 'linear-gradient(145deg,#60496e8c 0%,#71C4FF44 100%)';
@@ -15,11 +15,14 @@ const clamp = (v, min = 0, max = 100) => Math.min(Math.max(v, min), max);
 const round = (v, precision = 3) => parseFloat(v.toFixed(precision));
 const adjust = (v, fMin, fMax, tMin, tMax) => round(tMin + ((tMax - tMin) * (v - fMin)) / (fMax - fMin));
 
-function ProfileCardComponent({
-  avatarUrl,
-  iconUrl,
-  grainUrl,
+const ProfileCardComponent = ({
+  avatarUrl = '<Placeholder for avatar URL>',
+  iconUrl = '<Placeholder for icon URL>',
+  grainUrl = '<Placeholder for grain URL>',
+  innerGradient,
   customInnerGradient,
+  behindGlowEnabled,
+  showBehindGlow,
   behindGlowColor,
   behindGlowSize,
   className = '',
@@ -27,17 +30,17 @@ function ProfileCardComponent({
   enableMobileTilt = false,
   mobileTiltSensitivity = 5,
   miniAvatarUrl,
-  name,
-  title,
-  handle,
+  name = 'Javi A. Torres',
+  title = 'Software Engineer',
+  handle = 'javicodes',
   status = 'Online',
-  contactText = 'Contact Me',
+  contactText = 'Contact',
   showUserInfo = true,
-  onContactClick,
-  showBehindGlow = true
-}) {
+  onContactClick
+}) => {
   const wrapRef = useRef(null);
   const shellRef = useRef(null);
+
   const enterTimerRef = useRef(null);
   const leaveRafRef = useRef(null);
 
@@ -47,6 +50,7 @@ function ProfileCardComponent({
     let rafId = null;
     let running = false;
     let lastTs = 0;
+
     let currentX = 0;
     let currentY = 0;
     let targetX = 0;
@@ -63,8 +67,10 @@ function ProfileCardComponent({
 
       const width = shell.clientWidth || 1;
       const height = shell.clientHeight || 1;
+
       const percentX = clamp((100 / width) * x);
       const percentY = clamp((100 / height) * y);
+
       const centerX = percentX - 50;
       const centerY = percentY - 50;
 
@@ -80,30 +86,34 @@ function ProfileCardComponent({
         '--rotate-y': `${round(centerY / 4)}deg`
       };
 
-      Object.entries(properties).forEach(([key, value]) => wrap.style.setProperty(key, value));
+      for (const [k, v] of Object.entries(properties)) wrap.style.setProperty(k, v);
     };
 
     const step = (ts) => {
       if (!running) return;
       if (lastTs === 0) lastTs = ts;
-
       const dt = (ts - lastTs) / 1000;
       lastTs = ts;
+
       const tau = ts < initialUntil ? INITIAL_TAU : DEFAULT_TAU;
       const k = 1 - Math.exp(-dt / tau);
 
       currentX += (targetX - currentX) * k;
       currentY += (targetY - currentY) * k;
+
       setVarsFromXY(currentX, currentY);
 
       const stillFar = Math.abs(targetX - currentX) > 0.05 || Math.abs(targetY - currentY) > 0.05;
+
       if (stillFar || document.hasFocus()) {
         rafId = requestAnimationFrame(step);
       } else {
         running = false;
         lastTs = 0;
-        if (rafId) cancelAnimationFrame(rafId);
-        rafId = null;
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
       }
     };
 
@@ -118,7 +128,7 @@ function ProfileCardComponent({
       setImmediate(x, y) {
         currentX = x;
         currentY = y;
-        setVarsFromXY(x, y);
+        setVarsFromXY(currentX, currentY);
       },
       setTarget(x, y) {
         targetX = x;
@@ -151,32 +161,40 @@ function ProfileCardComponent({
     return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
   };
 
-  const handlePointerMove = useCallback((event) => {
-    const shell = shellRef.current;
-    if (!shell || !tiltEngine) return;
-    const { x, y } = getOffsets(event, shell);
-    tiltEngine.setTarget(x, y);
-  }, [tiltEngine]);
+  const handlePointerMove = useCallback(
+    (event) => {
+      const shell = shellRef.current;
+      if (!shell || !tiltEngine) return;
+      const { x, y } = getOffsets(event, shell);
+      tiltEngine.setTarget(x, y);
+    },
+    [tiltEngine]
+  );
 
-  const handlePointerEnter = useCallback((event) => {
-    const shell = shellRef.current;
-    if (!shell || !tiltEngine) return;
+  const handlePointerEnter = useCallback(
+    (event) => {
+      const shell = shellRef.current;
+      if (!shell || !tiltEngine) return;
 
-    shell.classList.add('active');
-    shell.classList.add('entering');
+      shell.classList.add('active');
+      shell.classList.add('entering');
+      if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
+      enterTimerRef.current = window.setTimeout(() => {
+        shell.classList.remove('entering');
+      }, ANIMATION_CONFIG.ENTER_TRANSITION_MS);
 
-    if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
-    enterTimerRef.current = window.setTimeout(() => shell.classList.remove('entering'), ANIMATION_CONFIG.ENTER_TRANSITION_MS);
-
-    const { x, y } = getOffsets(event, shell);
-    tiltEngine.setTarget(x, y);
-  }, [tiltEngine]);
+      const { x, y } = getOffsets(event, shell);
+      tiltEngine.setTarget(x, y);
+    },
+    [tiltEngine]
+  );
 
   const handlePointerLeave = useCallback(() => {
     const shell = shellRef.current;
     if (!shell || !tiltEngine) return;
 
     tiltEngine.toCenter();
+
     const checkSettle = () => {
       const { x, y, tx, ty } = tiltEngine.getCurrent();
       const settled = Math.hypot(tx - x, ty - y) < 0.6;
@@ -187,46 +205,63 @@ function ProfileCardComponent({
         leaveRafRef.current = requestAnimationFrame(checkSettle);
       }
     };
-
     if (leaveRafRef.current) cancelAnimationFrame(leaveRafRef.current);
     leaveRafRef.current = requestAnimationFrame(checkSettle);
   }, [tiltEngine]);
 
-  const handleDeviceOrientation = useCallback((event) => {
-    const shell = shellRef.current;
-    if (!shell || !tiltEngine) return;
+  const handleDeviceOrientation = useCallback(
+    (event) => {
+      const shell = shellRef.current;
+      if (!shell || !tiltEngine) return;
 
-    const { beta, gamma } = event;
-    if (beta == null || gamma == null) return;
+      const { beta, gamma } = event;
+      if (beta == null || gamma == null) return;
 
-    const centerX = shell.clientWidth / 2;
-    const centerY = shell.clientHeight / 2;
-    const x = clamp(centerX + gamma * mobileTiltSensitivity, 0, shell.clientWidth);
-    const y = clamp(centerY + (beta - ANIMATION_CONFIG.DEVICE_BETA_OFFSET) * mobileTiltSensitivity, 0, shell.clientHeight);
-    tiltEngine.setTarget(x, y);
-  }, [mobileTiltSensitivity, tiltEngine]);
+      const centerX = shell.clientWidth / 2;
+      const centerY = shell.clientHeight / 2;
+      const x = clamp(centerX + gamma * mobileTiltSensitivity, 0, shell.clientWidth);
+      const y = clamp(
+        centerY + (beta - ANIMATION_CONFIG.DEVICE_BETA_OFFSET) * mobileTiltSensitivity,
+        0,
+        shell.clientHeight
+      );
+
+      tiltEngine.setTarget(x, y);
+    },
+    [tiltEngine, mobileTiltSensitivity]
+  );
 
   useEffect(() => {
     if (!enableTilt || !tiltEngine) return;
+
     const shell = shellRef.current;
     if (!shell) return;
 
-    shell.addEventListener('pointerenter', handlePointerEnter);
-    shell.addEventListener('pointermove', handlePointerMove);
-    shell.addEventListener('pointerleave', handlePointerLeave);
+    const pointerMoveHandler = handlePointerMove;
+    const pointerEnterHandler = handlePointerEnter;
+    const pointerLeaveHandler = handlePointerLeave;
+    const deviceOrientationHandler = handleDeviceOrientation;
+
+    shell.addEventListener('pointerenter', pointerEnterHandler);
+    shell.addEventListener('pointermove', pointerMoveHandler);
+    shell.addEventListener('pointerleave', pointerLeaveHandler);
 
     const handleClick = () => {
       if (!enableMobileTilt || location.protocol !== 'https:') return;
       const anyMotion = window.DeviceMotionEvent;
       if (anyMotion && typeof anyMotion.requestPermission === 'function') {
-        anyMotion.requestPermission().then((state) => {
-          if (state === 'granted') window.addEventListener('deviceorientation', handleDeviceOrientation);
-        }).catch(() => {});
+        anyMotion
+          .requestPermission()
+          .then((state) => {
+            if (state === 'granted') {
+              window.addEventListener('deviceorientation', deviceOrientationHandler);
+            }
+          })
+          .catch(console.error);
       } else {
-        window.addEventListener('deviceorientation', handleDeviceOrientation);
+        window.addEventListener('deviceorientation', deviceOrientationHandler);
       }
     };
-
     shell.addEventListener('click', handleClick);
 
     const initialX = (shell.clientWidth || 0) - ANIMATION_CONFIG.INITIAL_X_OFFSET;
@@ -236,58 +271,94 @@ function ProfileCardComponent({
     tiltEngine.beginInitial(ANIMATION_CONFIG.INITIAL_DURATION);
 
     return () => {
-      shell.removeEventListener('pointerenter', handlePointerEnter);
-      shell.removeEventListener('pointermove', handlePointerMove);
-      shell.removeEventListener('pointerleave', handlePointerLeave);
+      shell.removeEventListener('pointerenter', pointerEnterHandler);
+      shell.removeEventListener('pointermove', pointerMoveHandler);
+      shell.removeEventListener('pointerleave', pointerLeaveHandler);
       shell.removeEventListener('click', handleClick);
-      window.removeEventListener('deviceorientation', handleDeviceOrientation);
+      window.removeEventListener('deviceorientation', deviceOrientationHandler);
       if (enterTimerRef.current) window.clearTimeout(enterTimerRef.current);
       if (leaveRafRef.current) cancelAnimationFrame(leaveRafRef.current);
       tiltEngine.cancel();
       shell.classList.remove('entering');
     };
-  }, [enableMobileTilt, enableTilt, handleDeviceOrientation, handlePointerEnter, handlePointerLeave, handlePointerMove, tiltEngine]);
+  }, [
+    enableTilt,
+    enableMobileTilt,
+    tiltEngine,
+    handlePointerMove,
+    handlePointerEnter,
+    handlePointerLeave,
+    handleDeviceOrientation
+  ]);
 
-  const cardStyle = useMemo(() => ({
-    '--icon': iconUrl ? `url(${iconUrl})` : 'none',
-    '--grain': grainUrl ? `url(${grainUrl})` : 'none',
-    '--inner-gradient': customInnerGradient ?? DEFAULT_INNER_GRADIENT,
-    '--behind-glow-color': behindGlowColor ?? 'rgba(125, 190, 255, 0.67)',
-    '--behind-glow-size': behindGlowSize ?? '50%'
-  }), [behindGlowColor, behindGlowSize, customInnerGradient, grainUrl, iconUrl]);
+  const cardStyle = useMemo(
+    () => ({
+      '--icon': iconUrl ? `url(${iconUrl})` : 'none',
+      '--grain': grainUrl ? `url(${grainUrl})` : 'none',
+      '--inner-gradient': innerGradient ?? customInnerGradient ?? DEFAULT_INNER_GRADIENT,
+      '--behind-glow-color': behindGlowColor ?? 'rgba(125, 190, 255, 0.67)',
+      '--behind-glow-size': behindGlowSize ?? '50%'
+    }),
+    [iconUrl, grainUrl, innerGradient, customInnerGradient, behindGlowColor, behindGlowSize]
+  );
+
+  const glowEnabled = behindGlowEnabled ?? showBehindGlow ?? true;
+
+  const handleContactClick = useCallback(() => {
+    onContactClick?.();
+  }, [onContactClick]);
 
   return (
     <div ref={wrapRef} className={`pc-card-wrapper ${className}`.trim()} style={cardStyle}>
-      {showBehindGlow && <div className="pc-behind" />}
-
+      {glowEnabled && <div className="pc-behind" />}
       <div ref={shellRef} className="pc-card-shell">
         <section className="pc-card">
           <div className="pc-inside">
             <div className="pc-shine" />
             <div className="pc-glare" />
-
             <div className="pc-content pc-avatar-content">
-              <img className="avatar" src={avatarUrl} alt={`${name} avatar`} loading="lazy" />
-
+              <img
+                className="avatar"
+                src={avatarUrl}
+                alt={`${name || 'User'} avatar`}
+                loading="lazy"
+                onError={(e) => {
+                  const t = e.target;
+                  t.style.display = 'none';
+                }}
+              />
               {showUserInfo && (
                 <div className="pc-user-info">
                   <div className="pc-user-details">
                     <div className="pc-mini-avatar">
-                      <img src={miniAvatarUrl || avatarUrl} alt={`${name} mini avatar`} loading="lazy" />
+                      <img
+                        src={miniAvatarUrl || avatarUrl}
+                        alt={`${name || 'User'} mini avatar`}
+                        loading="lazy"
+                        onError={(e) => {
+                          const t = e.target;
+                          t.style.opacity = '0.5';
+                          t.src = avatarUrl;
+                        }}
+                      />
                     </div>
                     <div className="pc-user-text">
-                      <div className="pc-handle">{handle}</div>
+                      <div className="pc-handle">@{handle}</div>
                       <div className="pc-status">{status}</div>
                     </div>
                   </div>
-
-                  <button className="pc-contact-btn" onClick={onContactClick} type="button" aria-label={`Contact ${name}`}>
+                  <button
+                    className="pc-contact-btn"
+                    onClick={handleContactClick}
+                    style={{ pointerEvents: 'auto' }}
+                    type="button"
+                    aria-label={`Contact ${name || 'user'}`}
+                  >
                     {contactText}
                   </button>
                 </div>
               )}
             </div>
-
             <div className="pc-content">
               <div className="pc-details">
                 <h3>{name}</h3>
@@ -299,7 +370,7 @@ function ProfileCardComponent({
       </div>
     </div>
   );
-}
+};
 
 const ProfileCard = React.memo(ProfileCardComponent);
 export default ProfileCard;
