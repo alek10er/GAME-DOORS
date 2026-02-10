@@ -71,3 +71,14 @@ npm run build
 ```
 
 Далее публикуйте содержимое `dist/` на любом статическом хостинге (Vercel, Netlify, GitHub Pages и т.д.).
+
+
+## Vercel note
+
+For Vercel deployment, ensure the project uses:
+
+- **Install Command**: `npm install`
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+
+Do **not** use `npm run dev` as an install/build command in CI.
