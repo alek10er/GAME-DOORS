@@ -3,20 +3,20 @@
 @tailwind utilities;
 
 :root {
-  --background: 222 45% 8%;
+  --background: 241 72% 6%;
   --foreground: 210 40% 98%;
-  --card: 222 38% 12%;
+  --card: 231 53% 14%;
   --card-foreground: 210 40% 98%;
   --primary: 221 70% 64%;
   --primary-foreground: 210 40% 98%;
-  --secondary: 220 22% 20%;
+  --secondary: 224 35% 18%;
   --secondary-foreground: 210 40% 98%;
-  --muted: 220 25% 16%;
+  --muted: 224 31% 16%;
   --muted-foreground: 215 20% 72%;
   --accent: 220 22% 22%;
   --accent-foreground: 210 40% 98%;
-  --border: 220 20% 28%;
-  --input: 220 20% 28%;
+  --border: 227 34% 24%;
+  --input: 227 34% 24%;
   --ring: 221 70% 64%;
 }
 
@@ -32,6 +32,11 @@ body {
   width: 100%;
   height: 100%;
   position: relative;
-  overflow: hidden;
   pointer-events: none;
+  z-index: 3;
+  overflow: hidden;
+}
+
+.custom-rays canvas {
+  opacity: 0.88;
 }

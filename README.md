@@ -34,7 +34,7 @@
 Если компонент доступен через shadcn CLI, можно использовать:
 
 ```bash
-npx shadcn@latest add @react-bits/lightrays-js-css
+npx shadcn@latest add @react-bits/LightRays-JS-CSS
 ```
 
 ## Commands
@@ -82,3 +82,8 @@ For Vercel deployment, ensure the project uses:
 - **Output Directory**: `dist`
 
 Do **not** use `npm run dev` as an install/build command in CI.
+
+
+## Light Rays implementation note
+
+This project ships a local `LightRays` component implementation based on the ReactBits shader setup (OGL renderer + props API), so visuals and behavior are closer to the original preview.
