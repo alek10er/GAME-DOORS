@@ -1,21 +1,5 @@
 import LightRays from './LightRays';
 
-function TopPanel() {
-  return (
-    <div className="mx-auto mt-8 flex w-[min(920px,92vw)] items-center justify-between rounded-full border border-white/15 bg-white/5 px-8 py-4 backdrop-blur-xl">
-      <span className="text-xl font-semibold tracking-tight text-white/95">The Aethereum</span>
-      <div className="flex gap-8 text-sm text-white/80">
-        <a href="#" className="transition hover:text-white">
-          UPD
-        </a>
-        <a href="#" className="transition hover:text-white">
-          WIKI
-        </a>
-      </div>
-    </div>
-  );
-}
-
 export default function Hero() {
   return (
     <section className="relative h-screen w-full overflow-hidden bg-background">
@@ -39,9 +23,7 @@ export default function Hero() {
 
       <div className="absolute inset-x-0 bottom-0 z-10 h-56 bg-gradient-to-b from-transparent via-[#070824]/80 to-[#040514]" />
 
-      <div className="relative z-20 flex h-full flex-col px-4 md:px-8">
-        <TopPanel />
-
+      <div className="relative z-20 flex h-full flex-col px-4 pt-24 md:px-8">
         <div className="flex flex-1 items-center justify-center">
           <div className="mx-auto flex max-w-3xl flex-col items-center text-center">
             <h1 className="mb-5 text-balance text-5xl font-semibold leading-tight text-slate-200 md:text-7xl">
