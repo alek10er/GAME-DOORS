@@ -4,21 +4,21 @@ const developers = [
   {
     name: 'mertvyakov',
     title: 'founder, designer',
-    handle: '@mertvyakov',
+    handle: 'mertvyakov',
     avatarUrl: '/mertvyakov.png',
     contactUrl: 'https://t.me/mertvyakov'
   },
   {
     name: 'BelarWhite',
     title: '3D-Modeler',
-    handle: '@BelarWhite',
+    handle: 'BelarWhite',
     avatarUrl: '/BelarWhite.png',
     contactUrl: 'https://t.me/BelarWhite'
   },
   {
     name: '2nic4',
     title: 'GUI designer',
-    handle: '@kkva5ik',
+    handle: 'kkva5ik',
     avatarUrl: '/2nic4.png',
     contactUrl: 'https://t.me/kkva5ik'
   }

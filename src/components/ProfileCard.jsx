@@ -343,7 +343,7 @@ const ProfileCardComponent = ({
                       />
                     </div>
                     <div className="pc-user-text">
-                      <div className="pc-handle">@{handle}</div>
+                      <div className="pc-handle">@{String(handle || '').replace(/^@+/, '')}</div>
                       <div className="pc-status">{status}</div>
                     </div>
                   </div>
