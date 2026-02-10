@@ -112,10 +112,10 @@
   mask-size: 150%;
   mask-position: top calc(200% - (var(--background-y) * 5)) left calc(100% - var(--background-x));
   transition: filter 0.8s ease;
-  filter: brightness(0.66) contrast(1.33) saturate(0.33) opacity(0.5);
+  filter: brightness(0.42) contrast(1.12) saturate(0.2) opacity(0.22);
   animation: holo-bg 18s linear infinite;
   animation-play-state: running;
-  mix-blend-mode: color-dodge;
+  mix-blend-mode: soft-light;
 }
 
 .pc-shine,
@@ -178,7 +178,7 @@
 
 .pc-card:hover .pc-shine,
 .pc-card.active .pc-shine {
-  filter: brightness(0.85) contrast(1.5) saturate(0.5);
+  filter: brightness(0.58) contrast(1.2) saturate(0.26);
   animation-play-state: paused;
 }
 
@@ -186,7 +186,7 @@
 .pc-card.active .pc-shine::before,
 .pc-card:hover .pc-shine::after,
 .pc-card.active .pc-shine::after {
-  opacity: 1;
+  opacity: 0.38;
 }
 
 .pc-shine::before {
@@ -210,10 +210,10 @@
     var(--pointer-x) var(--pointer-y),
     center,
     calc(var(--pointer-x) * 0.01) calc(var(--pointer-y) * 0.01);
-  background-blend-mode: color-dodge;
+  background-blend-mode: soft-light;
   filter: brightness(calc(2 - var(--pointer-from-center))) contrast(calc(var(--pointer-from-center) + 2))
     saturate(calc(0.5 + var(--pointer-from-center)));
-  mix-blend-mode: luminosity;
+  mix-blend-mode: soft-light;
 }
 
 .pc-shine::after {
@@ -225,8 +225,8 @@
     200% 300%,
     700% 700%,
     100% 100%;
-  mix-blend-mode: difference;
-  filter: brightness(0.8) contrast(1.5);
+  mix-blend-mode: soft-light;
+  filter: brightness(0.56) contrast(1.08);
 }
 
 .pc-glare {
@@ -237,8 +237,8 @@
     hsl(248, 25%, 80%) 12%,
     hsla(207, 40%, 30%, 0.8) 90%
   );
-  mix-blend-mode: overlay;
-  filter: brightness(0.8) contrast(1.2);
+  mix-blend-mode: soft-light;
+  filter: brightness(0.62) contrast(1.05);
   z-index: 4;
 }
 
@@ -376,11 +376,9 @@
   font-weight: 600;
   font-size: min(5svh, 3em);
   margin: 0;
-  background-image: linear-gradient(to bottom, #fff, #6f6fbe);
-  background-size: 1em 1.5em;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  -webkit-background-clip: text;
+  color: #f3f6ff;
+  letter-spacing: 0.01em;
+  text-shadow: 0 2px 16px rgba(16, 28, 60, 0.45);
 }
 
 .pc-details p {
@@ -391,11 +389,8 @@
   font-size: 16px;
   margin: 0 auto;
   width: min-content;
-  background-image: linear-gradient(to bottom, #fff, #4a4ac0);
-  background-size: 1em 1.5em;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  -webkit-background-clip: text;
+  color: rgba(230, 238, 255, 0.92);
+  text-shadow: 0 1px 10px rgba(12, 20, 44, 0.45);
 }
 
 @keyframes glow-bg {
